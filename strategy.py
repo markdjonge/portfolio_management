@@ -9,7 +9,7 @@ stocks = ["AAPL", "^GSPC", "GLD"]
 start_date = '01/01/2015'
 interval = 'm'
 months_rebalance = 6
-portfolio_weights = [0.70,0.15,0.15]
+portfolio_weights = [0,1,0]
 start_balance = 1000
 risk_free_rate = 0.001
 num_periods = 12
@@ -81,7 +81,7 @@ for ticker in stocks:
 # execute strategy
 month = 0
 months_index = 1
-for index, row in df.iterrows():
+for index, row in portfolio.stock_data.iterrows():
     portfolio.update_balance(index, month)
     if months_index >= portfolio.months_rebalance:
         portfolio.rebalance(index, month)
