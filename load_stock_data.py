@@ -15,13 +15,11 @@ stock_returns = pd.DataFrame()
 for c in tickers.values:
     try:
         data = web.get_data_yahoo(c[0], '1999-01-01', interval = 'm')
-        print(data)
         stock_returns[c[0]] = data['Adj Close']
-        print(c[0])
     except:
-        print("something went wrong!")
+        pass
     finally:
-        print("done getting data!")
+        pass
 
 # Save returns to excel sheet
-stock_returns.to_excel("output.xlsx")
+stock_returns.to_excel("output22.xlsx")

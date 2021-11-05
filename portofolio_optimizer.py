@@ -7,3 +7,5 @@ data = pd.read_excel('./cleaned.xlsx', index_col=0)
 
 # load assets
 assets = data.columns
+
+# optimize portfolio

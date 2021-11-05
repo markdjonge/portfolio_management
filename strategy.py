@@ -1,101 +1,138 @@
 import pandas as pd
 import pandas_datareader as web
 import numpy as np
-from scipy.optimize import minimize
+import scipy.optimize as sci_opt
+import csv
+import matplotlib.pyplot as plt
+from portfolio import portfolio
 
-# set portofolio vars
-strategy_name = "Reb. sem. yearly"
-stocks = ["AAPL", "^GSPC", "GLD"]
-start_date = '01/01/2015'
+# train vars
+symbols = ["VGT", "GLD"]
+benchmark = "QQQ"
+start_date_train = '2010/01/01'
+end_date_train = '2015/11/01'
+start_date_strategy = '2015-02-01'
+end_date_strategy = '2021-11-01'
 interval = 'm'
-months_rebalance = 6
-portfolio_weights = [0,1,0]
-start_balance = 1000
-risk_free_rate = 0.001
 num_periods = 12
+number_of_symbols = len(symbols)
 
-# set portfolio object
-class portfolio:
-    def __init__(self):
-        self.strategy_name = strategy_name
-        self.start_balance = start_balance
-        self.current_balance = 0
-        self.stocks = stocks
-        self.stock_data = {}
-        self.risk_free_rate = risk_free_rate
-        self.num_periods = num_periods
-        self.months_rebalance = months_rebalance
-        self.portfolio_weights = portfolio_weights
-        self.portfolio_stocks = {}
-        self.portfolio = {}
-        self.set_portfolio()
+# strategy vars
+risk_free_rate = 0.001
+strategy_name = 'Rebalance_half_year'
+start_balance = 1000 
+months_rebalance = 6
 
-    def set_portfolio(self):
-        stocks_and_weights = zip(self.stocks,self.portfolio_weights) 
-        self.portfolio = dict(stocks_and_weights)
-        self.stock_data = web.get_data_yahoo(self.stocks, start_date, interval = interval)['Adj Close']
-        for item in self.portfolio.items():
-            start_price = self.stock_data[item[0]][0]
-            print("start price: ", start_price) 
-            self.portfolio_stocks[item[0]] = self.start_balance * item[1] / start_price
-            print("Number of stocks purchased: ", self.portfolio_stocks[item[0]])
+try:
+    data = web.get_data_yahoo(symbols, start_date_train, end_date_strategy, interval = interval)['Adj Close']
+    print(data)
+except Exception as e:
+    print('Something went wrong with getting data:', e)
+
+price_data_frame = data.loc[start_date_train:end_date_train]
+df_to_csv = price_data_frame.pct_change()
+df_to_csv.to_excel('./data_voor_excel.xlsx', sheet_name='data')
+
+# Calculate the Log of returns.
+log_return = np.log(1 + price_data_frame.pct_change())
+norm_return = price_data_frame
+
+# Initialize the components, to run a Monte Carlo Simulation.
+
+# We will run 5000 iterations.
+num_of_portfolios = 5000
+
+# Prep an array to store the weights as they are generated, 5000 iterations for each of our 4 symbols.
+all_weights = np.zeros((num_of_portfolios, number_of_symbols))
+
+# Prep an array to store the returns as they are generated, 5000 possible return values.
+ret_arr = np.zeros(num_of_portfolios)
+
+# Prep an array to store the volatilities as they are generated, 5000 possible volatility values.
+vol_arr = np.zeros(num_of_portfolios)
+
+# Prep an array to store the sharpe ratios as they are generated, 5000 possible Sharpe Ratios.
+sharpe_arr = np.zeros(num_of_portfolios)
+
+# Start the simulations.
+for ind in range(num_of_portfolios):
+
+    # First, calculate the weights.
+    weights = np.array(np.random.random(number_of_symbols))
+    weights = weights / np.sum(weights)
+
+    # Add the weights, to the `weights_arrays`.
+    all_weights[ind, :] = weights
+
+    # Calculate the expected log returns, and add them to the `returns_array`.
+    ret_arr[ind] = np.sum((log_return.mean() * weights) * num_periods)
+
+    # Calculate the volatility, and add them to the `volatility_array`.
+    vol_arr[ind] = np.sqrt(
+        np.dot(weights.T, np.dot(log_return.cov() * num_periods, weights))
+    )
+
+    # Calculate the Sharpe Ratio and Add it to the `sharpe_ratio_array`.
+    sharpe_arr[ind] = (ret_arr[ind] - risk_free_rate)/vol_arr[ind]
+
+# Let's create our "Master Data Frame", with the weights, the returns, the volatility, and the Sharpe Ratio
+simulations_data = [ret_arr, vol_arr, sharpe_arr, all_weights]
+
+# Create a DataFrame from it, then Transpose it so it looks like our original one.
+simulations_df = pd.DataFrame(data=simulations_data).T
+
+# Give the columns the Proper Names.
+simulations_df.columns = [
+    'Returns',
+    'Volatility',
+    'Sharpe Ratio',
+    'Portfolio Weights'
+]
+
+# Make sure the data types are correct, we don't want our floats to be strings.
+simulations_df = simulations_df.infer_objects()
+
+# Return the Max Sharpe Ratio from the run.
+max_sharpe_ratio = simulations_df.loc[simulations_df['Sharpe Ratio'].idxmax()]
+
+# Return the Min Volatility from the run.
+min_volatility = simulations_df.loc[simulations_df['Volatility'].idxmin()]
+
+# print("PORTFOLIO TO BUY: ")
+stocks_and_weights = zip(price_data_frame,max_sharpe_ratio['Portfolio Weights'])
+portfolio_to_buy = dict(stocks_and_weights)
+# for key, value in portfolio_to_buy.items():
+#     print(key, value)
     
-    def get_current_balance(self, month):
-        self.current_balance = 0
-        for item in self.portfolio_stocks.items():
-            self.current_balance = self.current_balance + self.stock_data[item[0]][month] * item[1]
-            # print(self.stock_data[item[0]][day],item[1])
-        return self.current_balance
-        # print(self.portfolio_stocks)
-
-
-    def rebalance(self, index, month):
-        current_balance = self.get_current_balance(month)
-        for item in self.portfolio.items():
-            current_price = self.stock_data[item[0]][month]
-            self.portfolio_stocks[item[0]] = current_balance * item[1] / current_price
-            # self.stock_data.loc[[index], ['Actions']] = "Rebalanced"
-
-    def update_balance(self, index, month):
-        self.stock_data.loc[[index],[self.strategy_name]] = self.get_current_balance(month)
-    
-    def evaluate(self):
-        self.stock_data['return'] = self.stock_data[self.strategy_name].pct_change()*100
-        self.mean = np.mean(self.stock_data['return']) * self.num_periods
-        self.sdev = np.std(self.stock_data['return']) * np.sqrt(self.num_periods)
-        self.sharpe = (self.mean - self.risk_free_rate) / self.sdev
-        self.result = "mean: " , self.mean, " sdev: ", self.sdev, " sharpe: ", self.sharpe
-        
-
 # init portfolio
-portfolio = portfolio()
-
-# get stock data
-df = pd.DataFrame()
-for ticker in stocks:
-    df[ticker] = web.get_data_yahoo(ticker, start_date, interval=interval)['Adj Close']
-# print("Stock data loaded: ")
-# with pd.option_context('display.max_rows', None, 'display.max_columns', None):
-#     print(df)
+portfolio = portfolio(data, symbols, portfolio_to_buy, strategy_name, risk_free_rate, num_periods, start_balance, months_rebalance,benchmark, start_date_strategy, end_date_strategy, interval)
 
 # execute strategy
 month = 0
 months_index = 1
 for index, row in portfolio.stock_data.iterrows():
     portfolio.update_balance(index, month)
+    portfolio.update_buy_and_hold(index)
     if months_index >= portfolio.months_rebalance:
         portfolio.rebalance(index, month)
         months_index = 0
     month = month + 1
     months_index = months_index + 1
 
-with pd.option_context('display.max_rows', None, 'display.max_columns', None):
-    print(portfolio.stock_data)
+# with pd.option_context('display.max_rows', None, 'display.max_columns', None):
+#     print(portfolio.stock_data)
 
+# evaluate strategy
 portfolio.evaluate()
 print(portfolio.result)
+print("Training period: ", start_date_train, " - ", end_date_train)
+print("Prediction period: ", start_date_strategy, " - ", end_date_strategy)
+print("Portfolio: ", portfolio_to_buy)
 
-
-
-   
-
+plt.figure(figsize=(8,5))
+plt.plot(portfolio.stock_data[portfolio.strategy_name], label=portfolio.strategy_name)
+plt.plot(portfolio.stock_data['BuyAndHold'], label='BuyAndHold S&P500')
+plt.title('Portfolio vs S&P500 buy and hold')
+plt.ylabel('USD value portfolio')
+plt.legend()
+plt.show()
