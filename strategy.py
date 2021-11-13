@@ -6,12 +6,15 @@ import csv
 import matplotlib.pyplot as plt
 from portfolio import portfolio
 
+# disable copy warnings
+pd.options.mode.chained_assignment = None  # default='warn'
+
 # train vars
 symbols = ["VGT", "GLD"]
-benchmark = "QQQ"
-start_date_train = '2010/01/01'
+benchmark = "^GSPC"
+start_date_train = '2007/01/01'
 end_date_train = '2015/11/01'
-start_date_strategy = '2015-02-01'
+start_date_strategy = '2007-11-01'
 end_date_strategy = '2021-11-01'
 interval = 'm'
 num_periods = 12
@@ -19,13 +22,14 @@ number_of_symbols = len(symbols)
 
 # strategy vars
 risk_free_rate = 0.001
-strategy_name = 'Rebalance_half_year'
-start_balance = 1000 
+strategy_name = 'Rebalance half year'
+start_balance = 1000
+buy_monthly = 1000
 months_rebalance = 6
 
 try:
     data = web.get_data_yahoo(symbols, start_date_train, end_date_strategy, interval = interval)['Adj Close']
-    print(data)
+    # print(data)
 except Exception as e:
     print('Something went wrong with getting data:', e)
 
@@ -35,7 +39,6 @@ df_to_csv.to_excel('./data_voor_excel.xlsx', sheet_name='data')
 
 # Calculate the Log of returns.
 log_return = np.log(1 + price_data_frame.pct_change())
-norm_return = price_data_frame
 
 # Initialize the components, to run a Monte Carlo Simulation.
 
@@ -105,12 +108,14 @@ portfolio_to_buy = dict(stocks_and_weights)
 #     print(key, value)
     
 # init portfolio
-portfolio = portfolio(data, symbols, portfolio_to_buy, strategy_name, risk_free_rate, num_periods, start_balance, months_rebalance,benchmark, start_date_strategy, end_date_strategy, interval)
+portfolio = portfolio(data, symbols, portfolio_to_buy, strategy_name, risk_free_rate, num_periods, start_balance, months_rebalance,benchmark, start_date_strategy, end_date_strategy, interval, buy_monthly)
 
 # execute strategy
 month = 0
 months_index = 1
 for index, row in portfolio.stock_data.iterrows():
+    if month > 0:
+        portfolio.buy_stocks(index, month)
     portfolio.update_balance(index, month)
     portfolio.update_buy_and_hold(index)
     if months_index >= portfolio.months_rebalance:

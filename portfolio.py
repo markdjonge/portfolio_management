@@ -2,9 +2,10 @@ import pandas_datareader as web
 import numpy as np
 
 class portfolio:
-    def __init__(self, data, symbols, stocks_and_weights, strategy_name,risk_free_rate, num_periods, start_balance, months_rebalance, benchmark, start_date_strategy, end_date_strategy, interval):
+    def __init__(self, data, symbols, stocks_and_weights, strategy_name,risk_free_rate, num_periods, start_balance, months_rebalance, benchmark, start_date_strategy, end_date_strategy, interval, buy_monthly):
         self.strategy_name = strategy_name
         self.start_balance = start_balance
+        self.buy_monthly = buy_monthly
         self.start_date_strategy = start_date_strategy
         self.end_date_strategy = end_date_strategy
         self.interval = interval
@@ -27,9 +28,9 @@ class portfolio:
         self.benchmark_stocks = self.start_balance / self.stock_data['benchmark'][0]
         for item in self.portfolio.items():
             start_price = self.stock_data[item[0]][0]
-            print("start price: ", start_price)
+            # print("start price: ", start_price)
             self.portfolio_stocks[item[0]] = self.start_balance * item[1] / start_price
-            print("Number of stocks purchased: ", self.portfolio_stocks[item[0]])
+            # print("Number of stocks purchased: ", self.portfolio_stocks[item[0]])
 
     def get_current_balance(self, month):
         self.current_balance = 0
@@ -49,6 +50,16 @@ class portfolio:
 
     def update_balance(self, index, month):
         self.stock_data.loc[[index],[self.strategy_name]] = self.get_current_balance(month)
+        
+    def buy_stocks(self, index, month):
+        self.update_balance(index, month)
+        for item in self.portfolio.items():
+            stock_price = self.stock_data[item[0]][index]
+            # print("stock price: ", stock_price)
+            self.portfolio_stocks[item[0]] = self.portfolio_stocks[item[0]] + (self.buy_monthly * item[1] / stock_price)
+            # print("Number of stocks purchased: ", self.portfolio_stocks[item[0]])
+            
+        
     
     def update_buy_and_hold(self, index):
         bench = self.stock_data.loc[[index],['benchmark']]
