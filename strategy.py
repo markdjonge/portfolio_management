@@ -24,7 +24,7 @@ number_of_symbols = len(symbols)
 risk_free_rate = 0.001
 strategy_name = 'Rebalance half year'
 start_balance = 1000
-buy_monthly = 1000
+buy_monthly = 0
 months_rebalance = 6
 
 try:
@@ -34,8 +34,10 @@ except Exception as e:
     print('Something went wrong with getting data:', e)
 
 price_data_frame = data.loc[start_date_train:end_date_train]
-df_to_csv = price_data_frame.pct_change()
-df_to_csv.to_excel('./data_voor_excel.xlsx', sheet_name='data')
+
+# uncomment for excel data
+# df_to_csv = price_data_frame.pct_change()
+# df_to_csv.to_excel('./data_voor_excel.xlsx', sheet_name='data')
 
 # Calculate the Log of returns.
 log_return = np.log(1 + price_data_frame.pct_change())
